@@ -18,13 +18,16 @@ VOICE RULES: 1-2 short sentences. Spoken style. No lists, markdown, emojis or sy
 DATA RULES:
 - Always use tools to record or fetch data. Never invent prices, balances or stock.
 - "udhaar likh do", "khaate mein daal do", "kanakku la ezhudhu", "vaanginaar" (bought on credit) -> add_credit. add_credit already deducts stock.
-- "paise de diye", "pay pannitaanga", "kuduthaanga" -> record_payment (confirm once if above 2000 rupees).
+- "paise de diye", "pay pannitaanga", "kuduthaanga" -> record_payment (confirm once if above 2000 rupees). If it says the amount is more than the balance, confirm; if yes, call again with confirm_advance=true.
 - "kitna baaki", "evvalavu baaki" -> check_balance. "reminder bhejo / anuppu" -> send_payment_reminder.
 - "aaj ka hisaab", "innaiku kanakku" -> daily_summary.
-- Stock arrived ("10 kilo chawal aaya") -> update_stock with a positive number. Reorder from supplier -> place_reorder.
+- Stock arrived ("10 kilo chawal aaya", "pathu kilo arisi vandhuchu") -> update_stock with a positive number.
+- Order from supplier ("order kar do", "supplier ko bolo", "order pannu") -> place_reorder. If no quantity is said, omit qty and say the suggested amount it used.
 - Pass customer and product names to tools in English/Roman letters (e.g. Murugan, rice); tools understand local names like arisi, chawal, paal.
 - If several items are said in one sentence, put them all in ONE add_credit call.
-- After a credit entry, say the amount added and the new total balance. If low_stock is returned, mention it and ask if you should order more.
+- After a credit entry, say the amount added and the new total balance. If low_stock is returned (or out_of_stock), mention it and ask if you should order from the supplier.
+- If add_credit returns shortages, NOTHING was saved: say how many are in stock and ask one question: write only that many, or did they really give the full amount? Full -> call again with confirm_oversell=true; partial -> call again with the available quantity.
+- Pieces and packets are whole numbers; never invent a quantity the shopkeeper did not say (one item with no number = 1).
 - If a tool says a customer or item is not found, ask one short question.
 - When a reminder is sent, say you sent a payment REMINDER on Telegram (you never send money) and that you will follow up automatically if they don't pay. Hindi: 'Ramesh ji ko Telegram pe reminder bhej diya, payment nahi aaya to main khud yaad dila dunga.' Tamil: 'முருகன் அண்ணாவுக்கு Telegram-ல reminder அனுப்பிட்டேன், pay பண்ணலைன்னா நானே follow-up பண்றேன்.'
 SHOP DATA: {catalog}"""
@@ -61,18 +64,20 @@ TOOL_SCHEMAS = [
     _fn("add_credit", "Record items a customer took on credit (udhaar). Prices come from the catalog; stock is deducted automatically.",
         {**_customer, "items": {"type": "array", "items": {"type": "object", "properties": {
             "name": {"type": "string", "description": "Item name, e.g. rice / arisi / chawal"},
-            "qty": {"type": "number", "description": "Quantity in the item's unit (kg, packet, litre, piece)"}},
-            "required": ["name", "qty"]}}},
+            "qty": {"type": "number", "description": "Quantity in the item's unit (kg, packet, litre, piece). Must be > 0."}},
+            "required": ["name", "qty"]}},
+         "confirm_oversell": {"type": "boolean", "description": "Only after the shopkeeper confirms they handed over more than the recorded stock."}},
         ["customer_name", "items"]),
     _fn("record_payment", "Record money a customer paid towards their credit.",
-        {**_customer, "amount": {"type": "number"}, "method": {"type": "string", "enum": ["cash", "upi"]}},
+        {**_customer, "amount": {"type": "number"}, "method": {"type": "string", "enum": ["cash", "upi"]},
+         "confirm_advance": {"type": "boolean", "description": "Only after the shopkeeper confirms an amount larger than the balance (kept as advance)."}},
         ["customer_name", "amount"]),
     _fn("check_balance", "Get how much a customer owes, how long it is pending, and their last entry.", _customer, ["customer_name"]),
     _fn("check_stock", "Get current stock and price of a product.", _product, ["product_name"]),
     _fn("update_stock", "Adjust stock: positive when new stock arrives, negative for corrections or sales not on credit.",
         {**_product, "qty_change": {"type": "number"}}, ["product_name", "qty_change"]),
-    _fn("place_reorder", "Send an order request to the supplier for a product.",
-        {**_product, "qty": {"type": "number"}}, ["product_name", "qty"]),
+    _fn("place_reorder", "Send an order request to the supplier on Telegram. Use when stock is low/out or the shopkeeper asks to order.",
+        {**_product, "qty": {"type": "number", "description": "Amount to order; omit to use a suggested amount."}}, ["product_name"]),
     _fn("send_payment_reminder", "Send the customer a payment reminder on Telegram in their language with a UPI pay link; schedules an automatic follow-up.",
         _customer, ["customer_name"]),
     _fn("daily_summary", "Today's numbers: credit given, money recovered, total outstanding, low-stock items, top dues.", {}, []),

@@ -40,7 +40,8 @@ LLM_MODEL = _get("LLM_MODEL", "gpt-4.1-mini")
 TELEGRAM_BOT_TOKEN = _get("TELEGRAM_BOT_TOKEN")
 TG_CHAT_SHOPKEEPER = _get("TG_CHAT_SHOPKEEPER")
 TG_CHAT_CUSTOMER = _get("TG_CHAT_CUSTOMER")
-TG_CHAT_SUPPLIER = _get("TG_CHAT_SUPPLIER") or TG_CHAT_SHOPKEEPER
+TG_CHAT_SUPPLIER_SET = bool(_get("TG_CHAT_SUPPLIER"))
+TG_CHAT_SUPPLIER = _get("TG_CHAT_SUPPLIER") or TG_CHAT_SHOPKEEPER  # falls back to the shopkeeper's own chat
 
 # App
 PUBLIC_URL = _get("PUBLIC_URL", "http://localhost:8000").rstrip("/")

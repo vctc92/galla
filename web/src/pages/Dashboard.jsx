@@ -232,7 +232,7 @@ function StockBar({ p }) {
   return (
     <div>
       <div className="flex items-baseline justify-between text-[13px]">
-        <span className={p.low ? 'font-semibold text-bad' : 'text-ink'}>{p.name}{p.low && <span className="ml-1.5 text-[11px] font-semibold uppercase">Low</span>}</span>
+        <span className={p.low ? 'font-semibold text-bad' : 'text-ink'}>{p.name}{p.low && <span className="ml-1.5 text-[11px] font-semibold uppercase">{p.stock <= 0 ? 'Out' : 'Low'}</span>}</span>
         <span className="text-subtle">{p.stock} {p.unit}</span>
       </div>
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-canvas">

@@ -36,49 +36,110 @@ def _pending_items(customer_id: int, limit: int = 3) -> list[str]:
     return out
 
 
-async def add_credit(customer_name: str, items: list[dict]) -> dict:
+WHOLE_UNITS = {"piece", "packet"}  # can't sell 2.5 eggs or half a packet
+
+
+def _number(raw) -> float | None:
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _qty_problem(qty: float | None, raw, unit: str) -> str | None:
+    if qty is None:
+        return f"quantity '{raw}' is not a number"
+    if qty <= 0:
+        return "quantity must be more than zero"
+    if unit in WHOLE_UNITS and qty != int(qty):
+        return f"{unit} items are sold whole, not {qty:g}"
+    return None
+
+
+def _suggested_reorder(prod: dict) -> float:
+    return max(prod["low_stock_threshold"] * 3 - prod["stock"], prod["low_stock_threshold"])
+
+
+async def add_credit(customer_name: str, items: list[dict], confirm_oversell: bool = False) -> dict:
+    """All-or-nothing: if any item is unclear, invalid or short on stock, NOTHING is recorded."""
     cust, sugg = catalog.resolve_customer(customer_name)
     if not cust:
         return _not_found("customer", customer_name, sugg)
-    priced, unknown, pids = [], [], []
-    for it in items or []:
-        prod, _ = catalog.resolve_product(str(it.get("name", "")))
-        qty = float(it.get("qty") or 1)
+    if not items:
+        return {"ok": False, "error": "no items given", "hint": "Ask what the customer took."}
+
+    lines: dict[int, dict] = {}  # product_id -> line (same item said twice is merged)
+    unknown, invalid = [], []
+    for it in items:
+        name = str(it.get("name", "")).strip()
+        prod, _ = catalog.resolve_product(name)
         if not prod:
-            unknown.append(it.get("name"))
+            unknown.append(name)
             continue
-        sub = round(prod["price"] * qty, 2)
-        priced.append({"product_id": prod["id"], "name": prod["name"], "qty": qty, "unit": prod["unit"],
-                       "price": prod["price"], "subtotal": sub})
-        pids.append(prod["id"])
-    if not priced:
-        return {"ok": False, "error": "no known items", "unknown_items": unknown,
-                "hint": "Ask which item they meant.", "catalog": catalog.catalog_summary()}
+        raw = it.get("qty")
+        qty = 1.0 if raw is None else _number(raw)  # "ek Surf" with no number = 1
+        problem = _qty_problem(qty, raw, prod["unit"])
+        if problem:
+            invalid.append({"item": prod["name"], "problem": problem})
+            continue
+        line = lines.setdefault(prod["id"], {"prod": prod, "qty": 0.0})
+        line["qty"] += qty
+
+    if unknown or invalid:
+        return {"ok": False, "error": "unclear items, nothing recorded", "unknown_items": unknown,
+                "invalid_items": invalid, "recognised": [l["prod"]["name"] for l in lines.values()],
+                "hint": "Nothing was saved. Ask one short question about the unclear item, then call add_credit "
+                        "again with ALL items.", "catalog": catalog.catalog_summary() if unknown else None}
+
+    shortages = [{"product": l["prod"]["name"], "requested": l["qty"], "in_stock": l["prod"]["stock"],
+                  "unit": l["prod"]["unit"]} for l in lines.values() if l["qty"] > l["prod"]["stock"]]
+    if shortages and not confirm_oversell:
+        return {"ok": False, "error": "not enough stock, nothing recorded", "shortages": shortages,
+                "hint": "Nothing was saved. Tell the shopkeeper how many are in stock and ask ONE question: record only "
+                        "the available quantity, or did they really hand over the full quantity (stock count was off)? "
+                        "Full quantity -> call add_credit again with confirm_oversell=true. Available only -> call again "
+                        "with that quantity. Then offer to reorder from the supplier."}
+
+    priced = [{"product_id": l["prod"]["id"], "name": l["prod"]["name"], "qty": l["qty"], "unit": l["prod"]["unit"],
+               "price": l["prod"]["price"], "subtotal": round(l["prod"]["price"] * l["qty"], 2)} for l in lines.values()]
     total = round(sum(p["subtotal"] for p in priced), 2)
-    db.ex("INSERT INTO ledger(customer_id, items_json, amount, type, method, created_at) VALUES (?,?,?,?,?,?)",
-          (cust["id"], json.dumps(priced, ensure_ascii=False), total, "credit", "udhaar", time.time()))
-    for p in priced:
-        db.ex("UPDATE products SET stock = MAX(stock - ?, 0) WHERE id=?", (p["qty"], p["product_id"]))
-    bal = db.balance(cust["id"])
     desc = ", ".join(f"{p['qty']:g} {p['unit']} {p['name']}" for p in priced)
-    db.log_activity(f"{_inr(total)} udhaar added for {cust['name']} — {desc}", "credit",
-                    {"customer": cust["name"], "amount": total, "balance": bal})
-    low = _low_stock_warnings(pids)
+    with db.tx():  # ledger entry and stock deduction succeed or fail together
+        db.ex("INSERT INTO ledger(customer_id, items_json, amount, type, method, created_at) VALUES (?,?,?,?,?,?)",
+              (cust["id"], json.dumps(priced, ensure_ascii=False), total, "credit", "udhaar", time.time()))
+        for p in priced:
+            db.ex("UPDATE products SET stock = MAX(stock - ?, 0) WHERE id=?", (p["qty"], p["product_id"]))
+        bal = db.balance(cust["id"])
+        db.log_activity(f"{_inr(total)} udhaar added for {cust['name']} — {desc}", "credit",
+                        {"customer": cust["name"], "amount": total, "balance": bal})
+        for s in shortages:  # confirmed: the shelf had more than the system thought
+            db.log_activity(f"Stock count corrected: sold {s['requested']:g} {s['unit']} {s['product']} but system had "
+                            f"{s['in_stock']:g}. Now 0 — please recount.", "alert", {"product": s["product"]})
+        low = _low_stock_warnings([p["product_id"] for p in priced])
+        for w in low:
+            db.log_activity(f"{'Out of stock' if w['stock_left'] <= 0 else 'Low stock'}: "
+                            f"{w['stock_left']:g} {w['unit']} {w['product']} left", "alert", {"product": w["product"]})
     for w in low:
-        db.log_activity(f"Low stock: only {w['stock_left']:g} {w['unit']} {w['product']} left", "alert",
-                        {"product": w["product"]})
+        w["out_of_stock"] = w["stock_left"] <= 0
     return {"ok": True, "customer": cust["name"], "items": [{k: p[k] for k in ("name", "qty", "unit", "subtotal")} for p in priced],
-            "total": total, "new_balance": bal, "low_stock": low, "unknown_items": unknown,
-            "note": "Stock already deducted for these items; do NOT call update_stock for them."}
+            "total": total, "new_balance": bal, "low_stock": low, "stock_corrected": shortages,
+            "note": "Stock already deducted for these items; do NOT call update_stock for them."
+                    + (" Some items are low/out of stock: offer to reorder from the supplier." if low else "")}
 
 
-async def record_payment(customer_name: str, amount: float, method: str = "cash") -> dict:
+async def record_payment(customer_name: str, amount: float, method: str = "cash", confirm_advance: bool = False) -> dict:
     cust, sugg = catalog.resolve_customer(customer_name)
     if not cust:
         return _not_found("customer", customer_name, sugg)
-    amount = round(float(amount), 2)
-    if amount <= 0:
-        return {"ok": False, "error": "amount must be positive"}
+    amount = _number(amount)
+    if amount is None or amount <= 0:
+        return {"ok": False, "error": "amount must be a positive number", "hint": "Ask how much they paid."}
+    amount = round(amount, 2)
+    due = db.balance(cust["id"])
+    if amount > max(due, 0) and not confirm_advance:
+        return {"ok": False, "error": "amount is more than the balance due, nothing recorded", "balance_due": due,
+                "hint": f"Confirm the amount (maybe misheard). If correct, the extra {amount - max(due, 0):g} rupees is kept "
+                        "as advance: call again with confirm_advance=true."}
     db.ex("INSERT INTO ledger(customer_id, items_json, amount, type, method, created_at) VALUES (?,?,?,?,?,?)",
           (cust["id"], "[]", amount, "payment", method, time.time()))
     bal = db.balance(cust["id"])
@@ -87,7 +148,7 @@ async def record_payment(customer_name: str, amount: float, method: str = "cash"
               (time.time(), cust["id"]))
     db.log_activity(f"{cust['name']} paid {_inr(amount)} ({method}). Balance {_inr(bal)}", "payment",
                     {"customer": cust["name"], "amount": amount, "balance": bal, "method": method})
-    return {"ok": True, "customer": cust["name"], "paid": amount, "new_balance": bal}
+    return {"ok": True, "customer": cust["name"], "paid": amount, "new_balance": bal, "advance": max(-bal, 0)}
 
 
 async def check_balance(customer_name: str) -> dict:
@@ -112,35 +173,56 @@ async def check_stock(product_name: str) -> dict:
     prod, sugg = catalog.resolve_product(product_name)
     if not prod:
         return _not_found("product", product_name, sugg)
+    low = prod["stock"] <= prod["low_stock_threshold"]
     return {"ok": True, "product": prod["name"], "stock": prod["stock"], "unit": prod["unit"], "price": prod["price"],
-            "low": prod["stock"] <= prod["low_stock_threshold"]}
+            "low": low, "out_of_stock": prod["stock"] <= 0,
+            "suggested_reorder_qty": _suggested_reorder(prod) if low else None}
 
 
 async def update_stock(product_name: str, qty_change: float) -> dict:
     prod, sugg = catalog.resolve_product(product_name)
     if not prod:
         return _not_found("product", product_name, sugg)
-    qty_change = float(qty_change)
-    db.ex("UPDATE products SET stock = MAX(stock + ?, 0) WHERE id=?", (qty_change, prod["id"]))
+    change = _number(qty_change)
+    if change is None or change == 0:
+        return {"ok": False, "error": f"stock change '{qty_change}' is not a non-zero number", "hint": "Ask how many."}
+    if prod["unit"] in WHOLE_UNITS and change != int(change):
+        return {"ok": False, "error": f"{prod['unit']} items are counted whole", "hint": "Ask how many."}
+    clamped = change < 0 and -change > prod["stock"]
+    db.ex("UPDATE products SET stock = MAX(stock + ?, 0) WHERE id=?", (change, prod["id"]))
     new = db.one("SELECT * FROM products WHERE id=?", (prod["id"],))
-    verb = "restocked" if qty_change > 0 else "reduced"
-    db.log_activity(f"{new['name']} {verb} by {abs(qty_change):g} {new['unit']} → {new['stock']:g} left", "stock",
+    verb = "restocked" if change > 0 else "reduced"
+    db.log_activity(f"{new['name']} {verb} by {abs(change):g} {new['unit']} → {new['stock']:g} left", "stock",
                     {"product": new["name"]})
     low = new["stock"] <= new["low_stock_threshold"]
     if low:
-        db.log_activity(f"Low stock: only {new['stock']:g} {new['unit']} {new['name']} left", "alert", {"product": new["name"]})
-    return {"ok": True, "product": new["name"], "stock": new["stock"], "unit": new["unit"], "low": low}
+        db.log_activity(f"{'Out of stock' if new['stock'] <= 0 else 'Low stock'}: {new['stock']:g} {new['unit']} "
+                        f"{new['name']} left", "alert", {"product": new["name"]})
+    return {"ok": True, "product": new["name"], "stock": new["stock"], "unit": new["unit"], "low": low,
+            "out_of_stock": new["stock"] <= 0,
+            "note": f"Only {prod['stock']:g} were in stock, so stock is now 0." if clamped else None}
 
 
-async def place_reorder(product_name: str, qty: float) -> dict:
+async def place_reorder(product_name: str, qty: float | None = None) -> dict:
+    """Order from the supplier over Telegram. No qty -> a sensible suggested amount (3x the low-stock level)."""
     prod, sugg = catalog.resolve_product(product_name)
     if not prod:
         return _not_found("product", product_name, sugg)
-    text = f"📦 Order request from {config.SHOP_NAME}: {float(qty):g} {prod['unit']} {prod['name']} (stock now {prod['stock']:g})."
+    suggested = qty is None
+    qty = _suggested_reorder(prod) if suggested else _number(qty)
+    problem = _qty_problem(qty, qty, prod["unit"])
+    if problem:
+        return {"ok": False, "error": problem, "hint": "Ask how much to order."}
+    text = (f"📦 Order request from {config.SHOP_NAME}\n{qty:g} {prod['unit']} × {prod['name']}\n"
+            f"Current stock: {prod['stock']:g} {prod['unit']}. Please confirm delivery time.")
     res = await notify.send(config.TG_CHAT_SUPPLIER, text)
-    db.log_activity(f"Reorder sent to supplier: {float(qty):g} {prod['unit']} {prod['name']}", "stock",
-                    {"product": prod["name"], "delivered": res.get("ok"), "dry_run": res.get("dry_run", False)})
-    return {"ok": True, "product": prod["name"], "qty": qty, "sent_to_supplier": res.get("ok") or res.get("dry_run", False)}
+    to = "supplier" if config.TG_CHAT_SUPPLIER_SET else "shopkeeper's own Telegram (no supplier chat configured)"
+    db.log_activity(f"Reorder sent: {qty:g} {prod['unit']} {prod['name']} → {to.split(' (')[0]}"
+                    + ("" if res.get("ok") else " (dry-run)" if res.get("dry_run") else " (failed)"), "stock",
+                    {"product": prod["name"], "qty": qty, "delivered": res.get("ok")})
+    return {"ok": bool(res.get("ok") or res.get("dry_run")), "product": prod["name"], "qty": qty, "unit": prod["unit"],
+            "qty_was_suggested": suggested, "sent_to": to,
+            "note": "Order request only; stock increases when the delivery arrives (update_stock with a positive number)."}
 
 
 def _pay_link(rid: str) -> str:

@@ -3,6 +3,7 @@ import json
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 
 from . import config
 
@@ -90,6 +91,20 @@ def ex(sql: str, args: tuple = ()) -> int:
     with _lock:
         cur = conn().execute(sql, args)
         return cur.lastrowid
+
+
+@contextmanager
+def tx():
+    """All-or-nothing block: e.g. ledger entry + stock deduction commit together or not at all."""
+    with _lock:
+        c = conn()
+        c.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+            c.execute("COMMIT")
+        except Exception:
+            c.execute("ROLLBACK")
+            raise
 
 
 def init(reset: bool = False) -> None:

@@ -22,6 +22,9 @@ Rules:
 - Resolve products with `catalog.resolve_product` (handles arisi/chawal/चावल). Add new regional aliases in `db.SEED_PRODUCTS`, not in the tool.
 - Every user-visible effect gets `db.log_activity(text, kind)` with kind in `credit|payment|reminder|stock|alert|system`. A new kind also needs an entry in `web/src/components/kinds.js`.
 - Outbound messages go through `notify.send(...)` with a template in `notify.TEMPLATES` for `hi`, `ta` and `en`. Never send LLM-written text to customers.
+- **Validate before writing:** numbers via `_number()`/`_qty_problem()` (positive; pieces/packets whole). Never silently default, clamp or drop input.
+- **All-or-nothing:** if anything is unclear (unknown item, bad qty, not enough stock, amount > due) record NOTHING and return `ok: False` with the facts + a `hint` telling the LLM what one question to ask. Risky overrides need an explicit `confirm_*: bool` param the LLM sets only after the shopkeeper confirms (see `confirm_oversell`, `confirm_advance`).
+- Multi-row writes (ledger + stock) go inside `with db.tx():`.
 - Register it in `REGISTRY` at the bottom of `tools.py`.
 
 ## 2. Schema in `backend/prompts.py`
@@ -31,7 +34,7 @@ Append to `TOOL_SCHEMAS` using `_fn(name, description, props, required)`. Reuse 
 Add one DATA RULES line mapping Hinglish **and** Tanglish phrasings to the tool, e.g. `- "wapas kar diya", "thirumbi koduthaanga" -> return_item.` Keep the prompt short; it is resent on every turn.
 
 ## 4. Verify
-- Add a keyword branch for the new tool in `scripts/fake_openai.py` `_pick_tool` and a check in `scripts/smoke_offline.sh`, then run `./scripts/smoke_offline.sh`.
+- Add edge-case checks to `scripts/test_tools.py` (direct tool calls, temp DB) and, for new tools, a keyword branch in `scripts/fake_openai.py` `_pick_tool`. Then run `./scripts/smoke_offline.sh` (runs both suites).
 - If an OpenAI key is configured and the user agrees, run a live check in both languages:
   `curl -s -X POST localhost:8000/api/chat -H 'content-type: application/json' -d '{"message":"<hinglish phrase>","lang":"hi"}'`
   and confirm `actions[].tool` is the new tool and the reply is 1–2 sentences.

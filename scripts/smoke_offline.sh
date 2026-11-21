@@ -7,6 +7,10 @@ TMP=$(mktemp -d)
 cleanup() { kill $(jobs -p) 2>/dev/null || true; rm -rf "$TMP"; }
 trap cleanup EXIT
 
+echo "== tool edge cases =="
+.venv/bin/python scripts/test_tools.py 2>&1 | grep -v "dry-run"
+echo "== end-to-end =="
+
 .venv/bin/uvicorn --app-dir scripts fake_openai:app --port 8199 --log-level warning &
 DB_PATH="$TMP/smoke.db" OPENAI_API_KEY=fake LLM_BASE_URL=http://127.0.0.1:8199/v1 LLM_PROXY_SECRET=smoke \
 TELEGRAM_BOT_TOKEN= PUBLIC_URL=http://localhost:8198 FOLLOWUP_DELAY_SECONDS=2 MAX_FOLLOWUPS=1 \
