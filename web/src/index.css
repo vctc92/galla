@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Bricolage Grotesque", "Noto Sans Devanagari", "Noto Sans Tamil", system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", "Noto Sans Devanagari", "Noto Sans Tamil", system-ui, sans-serif;
+  --color-ink-950: #07090f;
+  --color-ink-900: #0c0f1a;
+  --color-ink-800: #141927;
+  --color-ink-700: #1d2436;
+  --color-ink-600: #2a3349;
+  --color-marigold-300: #ffd27a;
+  --color-marigold-400: #fbbd45;
+  --color-marigold-500: #f5a524;
+  --color-marigold-600: #d9860b;
+  --color-leaf-400: #4ade9a;
+  --color-leaf-500: #22c57a;
+  --color-chilli-400: #ff6b5e;
+  --color-chilli-500: #f2453a;
+  --color-peacock-400: #38d3e0;
+  --color-peacock-500: #13b5c4;
+}
+
+html, body, #root { height: 100%; }
+body {
+  @apply bg-ink-900 text-slate-100 font-sans antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.grain::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(245,165,36,.13), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(19,181,196,.12), transparent 60%);
+}
+.glass { @apply bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }

@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+galla.db
+web/node_modules/
+web/dist/
+.DS_Store
