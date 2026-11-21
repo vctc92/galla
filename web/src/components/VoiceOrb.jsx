@@ -1,81 +1,84 @@
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { LoaderCircle, Mic, Square } from 'lucide-react'
 
-const PALETTE = {
-  idle: ['#ffd27a', '#d9860b'],
-  connecting: ['#ffd27a', '#d9860b'],
-  listening: ['#ffd27a', '#f5a524'],
-  thinking: ['#a78bfa', '#6d28d9'],
-  speaking: ['#7ff0f8', '#13b5c4'],
-}
-
 /**
- * The big mic button. Rings react to live audio levels:
- * marigold = shopkeeper talking, peacock = Galla talking.
+ * Primary action of the shopkeeper app.
+ * idle: solid blue mic · listening: rings follow the mic level · thinking: rotating arc
+ * speaking: inverted (white with blue bars) so "Galla is talking" reads differently from "I'm talking".
  */
-export default function VoiceOrb({ phase = 'idle', level = 0, onClick, size = 176 }) {
-  const [a, b] = PALETTE[phase] || PALETTE.idle
+export default function VoiceOrb({ phase = 'idle', level = 0, onClick, size = 144 }) {
+  const reduce = useReducedMotion()
   const live = phase !== 'idle'
-  const l = Math.min(1, level * 2.2)
+  const speaking = phase === 'speaking'
+  const l = Math.min(1, level * 2.4)
 
   return (
-    <div className="relative grid place-items-center" style={{ width: size * 1.7, height: size * 1.7 }}>
-      {/* reactive halo rings */}
-      {[0, 1, 2].map((i) => (
-        <motion.div
+    <div className="relative grid place-items-center" style={{ width: size * 1.75, height: size * 1.75 }}>
+      {[0, 1].map((i) => (
+        <motion.span
           key={i}
-          className="absolute rounded-full"
-          style={{ width: size, height: size, border: `1.5px solid ${a}`, boxShadow: `0 0 40px ${b}55` }}
+          aria-hidden
+          className="absolute rounded-full border border-brand-200 bg-brand-50/60"
+          style={{ width: size, height: size }}
           animate={
-            live
-              ? { scale: 1 + l * (0.25 + i * 0.18) + (phase === 'connecting' ? 0.1 : 0), opacity: 0.55 - i * 0.15 + l * 0.3 }
-              : { scale: [1, 1.18 + i * 0.12, 1], opacity: [0.35 - i * 0.1, 0, 0.35 - i * 0.1] }
+            reduce ? { scale: 1 + 0.18 * (i + 1), opacity: 0.6 }
+              : phase === 'listening' ? { scale: 1 + l * (0.35 + i * 0.25) + 0.06, opacity: 0.9 - i * 0.3 }
+                : phase === 'idle' ? { scale: [1, 1.22 + i * 0.16], opacity: [0.7, 0] }
+                  : { scale: 1.12 + i * 0.14, opacity: 0.5 - i * 0.2 }
           }
-          transition={live ? { type: 'spring', stiffness: 300, damping: 20 } : { duration: 3.2, repeat: Infinity, delay: i * 0.6, ease: 'easeInOut' }}
+          transition={phase === 'idle' && !reduce
+            ? { duration: 2.8, repeat: Infinity, delay: i * 1.1, ease: 'easeOut' }
+            : { type: 'spring', stiffness: 260, damping: 22 }}
         />
       ))}
 
-      {/* rotating aura while connecting / thinking */}
       <AnimatePresence>
-        {(phase === 'connecting' || phase === 'thinking') && (
-          <motion.div
-            className="absolute rounded-full"
-            style={{ width: size * 1.18, height: size * 1.18, background: `conic-gradient(from 0deg, transparent, ${a}, transparent 40%)` }}
-            initial={{ opacity: 0 }} animate={{ opacity: 0.8, rotate: 360 }} exit={{ opacity: 0 }}
-            transition={{ rotate: { duration: 1.4, repeat: Infinity, ease: 'linear' }, opacity: { duration: 0.3 } }}
-          />
+        {(phase === 'thinking' || phase === 'connecting') && (
+          <motion.svg key="arc" aria-hidden className="absolute" width={size + 18} height={size + 18} viewBox="0 0 100 100"
+            initial={{ opacity: 0 }} animate={{ opacity: 1, rotate: 360 }} exit={{ opacity: 0 }}
+            transition={{ rotate: { duration: 1.1, repeat: Infinity, ease: 'linear' } }}>
+            <circle cx="50" cy="50" r="47" fill="none" stroke="var(--color-brand-500)" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="70 300" />
+          </motion.svg>
         )}
       </AnimatePresence>
 
       <motion.button
         onClick={onClick}
-        aria-label={live ? 'Stop' : 'Start talking'}
-        className="relative z-10 grid place-items-center rounded-full text-ink-900 outline-none"
+        aria-label={live ? 'Stop listening' : 'Start talking to Galla'}
+        aria-pressed={live}
+        className="relative z-10 grid place-items-center rounded-full border-2 shadow-[0_10px_30px_-12px_rgba(31,94,255,.55)]"
         style={{ width: size, height: size }}
-        animate={{ background: `radial-gradient(circle at 30% 25%, ${a}, ${b})`, scale: 1 + l * 0.06 }}
-        whileTap={{ scale: 0.92 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+        animate={{
+          backgroundColor: speaking ? '#ffffff' : '#1f5eff',
+          borderColor: speaking ? '#1f5eff' : '#1f5eff',
+          color: speaking ? '#1f5eff' : '#ffffff',
+        }}
+        whileTap={{ scale: 0.94 }}
+        transition={{ duration: 0.25 }}
       >
-        <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,.55),transparent_45%)]" />
-        <AnimatePresence mode="wait">
-          <motion.div key={phase === 'connecting' ? 'c' : live ? 'l' : 'i'}
-            initial={{ scale: 0.4, opacity: 0, rotate: -30 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} exit={{ scale: 0.4, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 22 }}>
-            {phase === 'connecting'
-              ? <LoaderCircle size={size * 0.3} className="animate-spin" />
-              : live ? <Square size={size * 0.24} fill="currentColor" /> : <Mic size={size * 0.34} strokeWidth={2.2} />}
-          </motion.div>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span key={speaking ? 'bars' : phase === 'connecting' ? 'load' : live ? 'stop' : 'mic'}
+            initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }}
+            transition={{ duration: 0.16 }} className="grid place-items-center">
+            {speaking ? <Bars level={l} /> :
+              phase === 'connecting' ? <LoaderCircle size={size * 0.28} className="animate-spin" /> :
+                live ? <Square size={size * 0.2} fill="currentColor" strokeWidth={0} /> :
+                  <Mic size={size * 0.32} strokeWidth={2} />}
+          </motion.span>
         </AnimatePresence>
-        {/* equaliser bars while audio flows */}
-        {live && phase !== 'connecting' && (
-          <div className="absolute bottom-[18%] flex items-end gap-1">
-            {[0.6, 1, 0.75, 1, 0.6].map((k, i) => (
-              <motion.span key={i} className="w-1 rounded-full bg-ink-900/70"
-                animate={{ height: 4 + l * 22 * k * (0.6 + Math.random() * 0.4) }} transition={{ duration: 0.12 }} />
-            ))}
-          </div>
-        )}
       </motion.button>
     </div>
+  )
+}
+
+function Bars({ level }) {
+  const shape = [0.45, 0.8, 1, 0.8, 0.45]
+  return (
+    <span className="flex h-10 items-center gap-1.5" aria-hidden>
+      {shape.map((k, i) => (
+        <motion.span key={i} className="w-1.5 rounded-full bg-brand-500"
+          animate={{ height: 6 + 30 * k * Math.max(0.2, level) }} transition={{ type: 'spring', stiffness: 500, damping: 18 }} />
+      ))}
+    </span>
   )
 }

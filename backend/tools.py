@@ -86,7 +86,7 @@ async def record_payment(customer_name: str, amount: float, method: str = "cash"
         db.ex("UPDATE reminders SET status='paid', paid_at=?, next_followup_at=NULL WHERE customer_id=? AND status='sent'",
               (time.time(), cust["id"]))
     db.log_activity(f"{cust['name']} paid {_inr(amount)} ({method}). Balance {_inr(bal)}", "payment",
-                    {"customer": cust["name"], "amount": amount, "balance": bal})
+                    {"customer": cust["name"], "amount": amount, "balance": bal, "method": method})
     return {"ok": True, "customer": cust["name"], "paid": amount, "new_balance": bal}
 
 

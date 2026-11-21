@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { LoaderCircle, ShieldCheck, Smartphone, Store } from 'lucide-react'
+import { LoaderCircle, ShieldCheck, Smartphone } from 'lucide-react'
+import Logo from '../components/Logo'
+import GroceryBackdrop from '../components/GroceryBackdrop'
 import { api } from '../lib/api'
 import { inr } from '../lib/format'
 
 const T = {
-  hi: { req: 'भुगतान अनुरोध', from: 'से', items: 'सामान', pay: 'UPI से भुगतान करें', app: 'UPI ऐप में खोलें', done: 'भुगतान हो गया!', thanks: 'धन्यवाद! दुकानदार को सूचना भेज दी गई है।', processing: 'भुगतान हो रहा है…' },
-  ta: { req: 'பணம் செலுத்த கோரிக்கை', from: '', items: 'பொருட்கள்', pay: 'UPI மூலம் செலுத்துங்கள்', app: 'UPI app-ல் திற', done: 'பணம் செலுத்தப்பட்டது!', thanks: 'நன்றி! கடைக்காரருக்கு தகவல் அனுப்பப்பட்டது.', processing: 'செலுத்துகிறது…' },
-  en: { req: 'Payment request', from: 'from', items: 'Items', pay: 'Pay with UPI', app: 'Open in UPI app', done: 'Payment done!', thanks: 'Thank you! The shopkeeper has been notified.', processing: 'Processing…' },
+  hi: { req: 'भुगतान अनुरोध', due: 'बकाया राशि', items: 'सामान', pay: 'UPI से भुगतान करें', app: 'UPI ऐप में खोलें', done: 'भुगतान हो गया', thanks: 'धन्यवाद! दुकानदार को सूचना भेज दी गई है।', processing: 'भुगतान हो रहा है…', secure: 'सैंडबॉक्स भुगतान · Galla द्वारा' },
+  ta: { req: 'பணம் செலுத்த கோரிக்கை', due: 'செலுத்த வேண்டியது', items: 'பொருட்கள்', pay: 'UPI மூலம் செலுத்துங்கள்', app: 'UPI app-ல் திற', done: 'பணம் செலுத்தப்பட்டது', thanks: 'நன்றி! கடைக்காரருக்கு தகவல் அனுப்பப்பட்டது.', processing: 'செலுத்துகிறது…', secure: 'Sandbox பணம் · Galla' },
+  en: { req: 'Payment request', due: 'Amount due', items: 'Items', pay: 'Pay with UPI', app: 'Open in UPI app', done: 'Payment complete', thanks: 'Thank you! The shopkeeper has been notified.', processing: 'Processing…', secure: 'Sandbox payment · Powered by Galla' },
 }
 
 export default function Pay({ id }) {
@@ -21,84 +23,76 @@ export default function Pay({ id }) {
 
   async function pay() {
     setStage('paying')
-    const [r] = await Promise.all([api.post(`/api/pay/${id}/confirm`), new Promise((res) => setTimeout(res, 1400))])
-    if (r.ok) setStage('done')
+    try {
+      const [r] = await Promise.all([api.post(`/api/pay/${id}/confirm`), new Promise((res) => setTimeout(res, 1200))])
+      setStage(r.ok ? 'done' : 'ready')
+    } catch (e) {
+      setErr(e.message); setStage('ready')
+    }
   }
 
-  if (err) return <div className="grid h-full place-items-center bg-stone-50 p-6 text-center text-stone-600">{err}</div>
-  if (!info) return <div className="grid h-full place-items-center bg-stone-50"><LoaderCircle className="animate-spin text-stone-400" /></div>
+  if (err && !info) return <div className="grid h-full place-items-center p-6 text-center text-muted">{err}</div>
+  if (!info) return <div className="grid h-full place-items-center"><LoaderCircle className="animate-spin text-subtle" /></div>
   const t = T[info.language] || T.en
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-amber-50 to-stone-100 text-stone-900">
-      <div className="mx-auto flex min-h-dvh max-w-sm flex-col px-5 py-8">
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-marigold-400 to-marigold-600 text-white shadow-lg"><Store /></div>
-          <div>
-            <div className="text-xs uppercase tracking-widest text-stone-500">{t.req}</div>
-            <div className="font-display text-xl font-bold">{info.shop}</div>
-          </div>
-        </motion.div>
+    <div className="relative min-h-full">
+      <GroceryBackdrop opacity={0.05} cols={3} rows={5} />
+      <main className="relative z-10 mx-auto flex min-h-dvh max-w-sm flex-col px-5 pb-6 pt-8">
+        <Logo size={34} sub={t.req} />
 
-        <motion.div initial={{ opacity: 0, y: 30, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 22, delay: 0.1 }}
-          className="relative mt-6 overflow-hidden rounded-[2rem] bg-white p-6 shadow-[0_20px_60px_-20px_rgba(120,80,0,.35)]">
+        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+          className="card mt-6 overflow-hidden" aria-live="polite">
           <AnimatePresence mode="wait">
             {stage !== 'done' ? (
-              <motion.div key="due" exit={{ opacity: 0, scale: 0.9 }}>
-                <div className="text-sm text-stone-500">{info.customer} {t.from}</div>
-                <div className="font-display text-6xl font-extrabold tracking-tight">{inr(info.amount)}</div>
+              <motion.div key="due" exit={{ opacity: 0 }} className="p-6">
+                <div className="text-[14px] text-muted">{info.shop}</div>
+                <div className="mt-4 label-loc">{t.due}</div>
+                <div className="mt-1 text-[48px] font-bold leading-none tracking-tight">{inr(info.amount)}</div>
+                <div className="mt-2 text-[15px] text-muted">{info.customer}</div>
                 {info.items.length > 0 && (
-                  <div className="mt-4 border-t border-dashed border-stone-200 pt-3">
-                    <div className="text-xs uppercase tracking-widest text-stone-400">{t.items}</div>
-                    <ul className="mt-1 space-y-0.5 text-sm text-stone-700">
-                      {info.items.map((it, i) => (
-                        <motion.li key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 + i * 0.06 }}>• {it}</motion.li>
-                      ))}
+                  <div className="mt-5 border-t border-dashed border-line pt-4">
+                    <div className="label-loc">{t.items}</div>
+                    <ul className="mt-2 space-y-1 text-[15px]">
+                      {info.items.map((it, i) => <li key={i} className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-subtle" />{it}</li>)}
                     </ul>
                   </div>
                 )}
               </motion.div>
             ) : (
-              <motion.div key="done" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="py-4 text-center">
-                <SuccessTick />
-                <div className="mt-3 font-display text-2xl font-bold text-leaf-500">{t.done}</div>
-                <div className="font-display text-4xl font-extrabold">{inr(info.amount)}</div>
-                <div className="mt-2 text-sm text-stone-500">{t.thanks}</div>
+              <motion.div key="done" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 text-center">
+                <svg width="72" height="72" viewBox="0 0 72 72" className="mx-auto" aria-hidden>
+                  <motion.circle cx="36" cy="36" r="34" fill="var(--color-ok)" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 280, damping: 16 }} />
+                  <motion.path d="M22 37 L32 47 L51 26" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"
+                    initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 0.2, duration: 0.4 }} />
+                </svg>
+                <div className="mt-4 text-[18px] font-semibold text-ok">{t.done}</div>
+                <div className="mt-1 text-[40px] font-bold leading-none tracking-tight">{inr(info.amount)}</div>
+                <p className="mt-3 text-[14px] text-muted">{t.thanks}</p>
               </motion.div>
             )}
           </AnimatePresence>
-        </motion.div>
+        </motion.section>
 
         <div className="flex-1" />
 
         {stage !== 'done' && (
-          <div className="space-y-3">
-            <motion.button onClick={pay} disabled={stage === 'paying'} whileTap={{ scale: 0.96 }}
-              className="relative w-full overflow-hidden rounded-2xl bg-stone-900 py-4 text-lg font-semibold text-white shadow-xl disabled:opacity-90">
-              {stage === 'paying' && (
-                <motion.div className="absolute inset-y-0 left-0 bg-leaf-500" initial={{ width: '0%' }} animate={{ width: '100%' }} transition={{ duration: 1.4, ease: 'easeInOut' }} />
-              )}
+          <div className="mt-8 space-y-3">
+            {err && <p role="alert" className="text-center text-[14px] text-bad">{err}</p>}
+            <button onClick={pay} disabled={stage === 'paying'}
+              className="relative h-14 w-full overflow-hidden rounded-xl bg-brand-500 text-[17px] font-semibold text-white shadow-[0_10px_24px_-12px_rgba(31,94,255,.7)] transition-colors hover:bg-brand-600 disabled:cursor-wait">
+              {stage === 'paying' && <motion.span aria-hidden className="absolute inset-y-0 left-0 bg-brand-700" initial={{ width: '0%' }} animate={{ width: '100%' }} transition={{ duration: 1.2 }} />}
               <span className="relative flex items-center justify-center gap-2">
-                {stage === 'paying' ? <><LoaderCircle className="animate-spin" size={20} /> {t.processing}</> : <>{t.pay} · {inr(info.amount)}</>}
+                {stage === 'paying' ? <><LoaderCircle className="animate-spin" size={18} /> {t.processing}</> : <>{t.pay} · {inr(info.amount)}</>}
               </span>
-            </motion.button>
-            <a href={info.upi_link} className="flex items-center justify-center gap-2 rounded-2xl border border-stone-300 py-3 text-sm font-medium text-stone-700">
+            </button>
+            <a href={info.upi_link} className="flex h-12 items-center justify-center gap-2 rounded-xl border border-line bg-surface text-[15px] font-medium text-ink hover:border-brand-200">
               <Smartphone size={16} /> {t.app}
             </a>
-            <div className="flex items-center justify-center gap-1 text-[11px] text-stone-400"><ShieldCheck size={12} /> Sandbox payment · Powered by Galla</div>
+            <p className="flex items-center justify-center gap-1 text-[12px] text-subtle"><ShieldCheck size={13} /> {t.secure}</p>
           </div>
         )}
-      </div>
+      </main>
     </div>
-  )
-}
-
-function SuccessTick() {
-  return (
-    <motion.svg width="96" height="96" viewBox="0 0 96 96" className="mx-auto">
-      <motion.circle cx="48" cy="48" r="44" fill="#22c57a" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 15 }} />
-      <motion.path d="M28 50 L42 63 L69 34" fill="none" stroke="white" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"
-        initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 0.25, duration: 0.45, ease: 'easeOut' }} />
-    </motion.svg>
   )
 }

@@ -1,37 +1,39 @@
 @import "tailwindcss";
 
+/* Galla design tokens — light, minimal, one accent (blue) + semantic status colours. */
 @theme {
-  --font-display: "Bricolage Grotesque", "Noto Sans Devanagari", "Noto Sans Tamil", system-ui, sans-serif;
-  --font-sans: "Plus Jakarta Sans", "Noto Sans Devanagari", "Noto Sans Tamil", system-ui, sans-serif;
-  --color-ink-950: #07090f;
-  --color-ink-900: #0c0f1a;
-  --color-ink-800: #141927;
-  --color-ink-700: #1d2436;
-  --color-ink-600: #2a3349;
-  --color-marigold-300: #ffd27a;
-  --color-marigold-400: #fbbd45;
-  --color-marigold-500: #f5a524;
-  --color-marigold-600: #d9860b;
-  --color-leaf-400: #4ade9a;
-  --color-leaf-500: #22c57a;
-  --color-chilli-400: #ff6b5e;
-  --color-chilli-500: #f2453a;
-  --color-peacock-400: #38d3e0;
-  --color-peacock-500: #13b5c4;
+  --font-sans: "Figtree", "Noto Sans Devanagari", "Noto Sans Tamil", system-ui, sans-serif;
+  --font-display: "Figtree", "Noto Sans Devanagari", "Noto Sans Tamil", system-ui, sans-serif;
+
+  --color-canvas: #f5f8fc;     /* page background */
+  --color-surface: #ffffff;    /* cards */
+  --color-line: #e3e9f2;       /* borders, dividers */
+  --color-ink: #0e1726;        /* primary text */
+  --color-muted: #5b6b82;      /* secondary text */
+  --color-subtle: #8a99af;     /* tertiary text, placeholders */
+
+  --color-brand-50: #eef3ff;
+  --color-brand-100: #dbe5ff;
+  --color-brand-200: #b9ccff;
+  --color-brand-500: #1f5eff;  /* primary */
+  --color-brand-600: #194fe0;
+  --color-brand-700: #1440b5;
+
+  --color-ok: #12a150;   --color-ok-50: #e8f7ee;
+  --color-warn: #c27400; --color-warn-50: #fff4e0;
+  --color-bad: #d93a3a;  --color-bad-50: #fdeeee;
 }
 
 html, body, #root { height: 100%; }
 body {
-  @apply bg-ink-900 text-slate-100 font-sans antialiased;
+  @apply bg-canvas text-ink font-sans antialiased;
   -webkit-tap-highlight-color: transparent;
+  font-feature-settings: "tnum" 1;  /* aligned rupee figures everywhere */
 }
 
-.grain::before {
-  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(245,165,36,.13), transparent 60%),
-    radial-gradient(900px 500px at 110% 10%, rgba(19,181,196,.12), transparent 60%);
-}
-.glass { @apply bg-white/[0.04] border border-white/[0.08] backdrop-blur-xl; }
+.card { @apply bg-surface border border-line rounded-2xl; }
+.label { @apply text-[12px] font-semibold uppercase tracking-[0.08em] text-subtle; }   /* English labels */
+.label-loc { @apply text-[13px] font-semibold text-subtle; }  /* Hindi/Tamil labels: no tracking/uppercase (breaks conjuncts) */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
+:focus-visible { outline: 2px solid var(--color-brand-500); outline-offset: 2px; border-radius: 8px; }

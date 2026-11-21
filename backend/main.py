@@ -190,10 +190,11 @@ async def pay_confirm(rid: str):
           (now, cust["id"]))
     db.ex("UPDATE reminders SET status='paid', paid_at=? WHERE id=?", (now, rid))
     new_bal = db.balance(cust["id"])
+    sent = await notify.send(config.TG_CHAT_SHOPKEEPER,
+                             f"✅ Payment received: {cust['name']} paid {_inr(amount)} via UPI.\nBalance now {_inr(new_bal)}. — Galla")
     db.log_activity(f"💸 {cust['name']} paid {_inr(amount)} via UPI. Balance {_inr(new_bal)}", "payment",
-                    {"customer": cust["name"], "amount": amount, "balance": new_bal, "celebrate": True})
-    await notify.send(config.TG_CHAT_SHOPKEEPER,
-                      f"✅ Payment received: {cust['name']} paid {_inr(amount)} via UPI.\nBalance now {_inr(new_bal)}. — Galla")
+                    {"customer": cust["name"], "amount": amount, "balance": new_bal, "method": "upi",
+                     "notified": bool(sent.get("ok"))})
     await notify.send(notify.customer_chat(cust), notify.render("thanks", cust["language"], name=cust["name"], amount=_inr(amount)))
     return {"ok": True, "amount": amount, "new_balance": new_bal}
 

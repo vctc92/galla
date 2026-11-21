@@ -2,7 +2,7 @@
 .venv/
 __pycache__/
 *.pyc
-galla.db
+galla.db*
 web/node_modules/
 web/dist/
 .DS_Store
