@@ -1,7 +1,42 @@
-# Galla — Voice Bahi-Khata for Bharat's Kirana Shops
+<div align="center">
 
-Shopkeepers run udhaar (credit), stock and payment follow-ups by **talking in Hinglish or Tanglish**.
-Track: *Voice AI for Bharat* (PS11) · Agora Conversational AI + Murf Falcon TTS + OpenAI tool calling.
+# Galla · गल्ला · கல்லா
+
+### The kirana notebook that listens: voice bahi-khata for Bharat's shops
+
+**दुकान का बही-खाता, अब आपकी आवाज़ पर।**<br/>
+**கடை கணக்கு நோட்டு, இப்போ உங்க குரல்ல.**
+
+Hinglish · Tanglish · Agora Conversational AI · Murf Falcon · Agentic tool calling
+
+</div>
+
+---
+
+Every kirana counter has a *galla*, the cash box (Hindi **गल्ला**, Tamil **கல்லா**), and a notebook full of *udhaar*.
+**Galla** turns that notebook into a voice assistant. The shopkeeper just talks, the way they already do, and Galla records credit, updates stock, and gets the money back.
+
+| हिंदी / Hinglish | தமிழ் / Tanglish |
+|---|---|
+| 🗣️ *"Ramesh ne do kilo chawal aur ek Surf liya, udhaar mein likh do"* | 🗣️ *"Murugan anna rendu kilo arisi, oru Surf vaanginaar, kanakku la ezhudhu"* |
+| ✅ उधार लिखा, स्टॉक घटाया, कुल बाकी बताया | ✅ கணக்குல எழுதியது, ஸ்டாக் குறைத்தது, மொத்த பாக்கி சொன்னது |
+| 🗣️ *"Ramesh ko reminder bhejo"* | 🗣️ *"Murugan ku reminder anuppu"* |
+| 📲 ग्राहक को हिंदी में Telegram रिमाइंडर + UPI लिंक | 📲 வாடிக்கையாளருக்கு தமிழில் Telegram ரிமைண்டர் + UPI லிங்க் |
+| 🗣️ *"Aaj ka hisaab batao"* | 🗣️ *"Innaiku kanakku sollu"* |
+| 📊 आज का उधार, वसूली, कम स्टॉक | 📊 இன்றைய கடன், வசூல், குறைந்த ஸ்டாக் |
+
+**बस बोलिए:** Galla उधार लिखेगा, स्टॉक अपडेट करेगा, और ग्राहक को उनकी भाषा में पेमेंट रिमाइंडर भेजेगा।<br/>
+**சொன்னா போதும்:** Galla கணக்கு எழுதும், ஸ்டாக் அப்டேட் பண்ணும், வாடிக்கையாளருக்கு அவங்க மொழியிலேயே ரிமைண்டர் அனுப்பும்.
+
+## How it works
+
+1. **Speak:** the shopkeeper talks in Hinglish or Tanglish on the phone (Agora Conversational AI handles real-time voice and speech recognition).
+2. **Understand:** regional product names are matched to the catalogue (*arisi* = *chawal* = चावल = rice), and a tool-calling agent works out what the shopkeeper wants.
+3. **Act:** the agent records credit, deducts stock, checks balances, records payments and sends supplier reorders.
+4. **Remind:** each customer gets a Telegram message **in their own language** with a UPI pay link, plus an automatic follow-up if unpaid.
+5. **Close the loop:** the customer pays, the shopkeeper is alerted, the live dashboard turns green, and Galla speaks every confirmation in Murf Falcon's Hindi or Tamil voice.
+
+Built for the *Voice AI for Bharat: Speak Your Language* track (PS11). Payments use a sandbox page plus a `upi://` deep link; no real money moves.
 
 ## Stack
 
