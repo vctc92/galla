@@ -34,7 +34,8 @@ Every kirana counter has a *galla*, the cash box (Hindi **गल्ला**, Tam
 2. **Understand:** regional product names are matched to the catalogue (*arisi* = *chawal* = चावल = rice), and a tool-calling agent works out what the shopkeeper wants.
 3. **Act:** the agent records credit, deducts stock, checks balances, records payments and sends supplier reorders.
 4. **Remind:** each customer gets a Telegram message **in their own language** with a UPI pay link, plus an automatic follow-up if unpaid.
-5. **Close the loop:** the customer pays, the shopkeeper is alerted, the live dashboard turns green, and Galla speaks every confirmation in Murf Falcon's Hindi or Tamil voice.
+5. **Restock:** when stock runs low Galla offers to order; the supplier gets a Telegram order with a **Confirm delivery** link, and confirming it adds the stock automatically (short deliveries supported).
+6. **Close the loop:** the customer pays, the shopkeeper is alerted, the live dashboard turns green, and Galla speaks every confirmation in Murf Falcon's Hindi or Tamil voice.
 
 Built for the *Voice AI for Bharat: Speak Your Language* track (PS11). Payments use a sandbox page plus a `upi://` deep link; no real money moves.
 
@@ -64,6 +65,7 @@ Open on the ngrok URL:
 - `/app` → shopkeeper phone (tap mic)
 - `/dashboard` → projector
 - `/pay/<id>` → customer pay page (link arrives on Telegram)
+- `/supply/<id>` → supplier delivery confirmation (link arrives on Telegram)
 
 **UI dev mode:** `cd web && npm run dev` → http://localhost:5173 (hot reload, proxies API to :8000).
 
@@ -119,4 +121,5 @@ Missing keys never crash the app: Telegram runs in dry-run (logged in the activi
 | POST | `/api/tts` `{text, lang}` | Murf Falcon MP3 (browser-voice mode) |
 | GET | `/api/state` | Ledger, stock, activity, conversation, numbers |
 | GET/POST | `/api/pay/{id}` · `/api/pay/{id}/confirm` | Sandbox pay page data / mark paid |
+| GET/POST | `/api/supply/{id}` · `/api/supply/{id}/confirm` `{delivered_qty?}` | Supplier delivery page data / confirm delivery → restock |
 | POST | `/api/reset` | Re-seed demo data |

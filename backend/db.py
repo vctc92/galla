@@ -30,6 +30,11 @@ CREATE TABLE IF NOT EXISTS reminders(
   followups_sent INTEGER NOT NULL DEFAULT 0, next_followup_at REAL,
   created_at REAL NOT NULL, paid_at REAL
 );
+CREATE TABLE IF NOT EXISTS orders(
+  id TEXT PRIMARY KEY, product_id INTEGER NOT NULL, qty REAL NOT NULL, delivered_qty REAL,
+  status TEXT NOT NULL CHECK(status IN ('sent','delivered','cancelled')),
+  created_at REAL NOT NULL, delivered_at REAL
+);
 CREATE TABLE IF NOT EXISTS activity(
   id INTEGER PRIMARY KEY, text TEXT NOT NULL, kind TEXT NOT NULL, meta_json TEXT, created_at REAL NOT NULL
 );
@@ -111,7 +116,7 @@ def init(reset: bool = False) -> None:
     with _lock:
         c = conn()
         if reset:
-            for t in ("customers", "products", "ledger", "reminders", "activity", "conversation"):
+            for t in ("customers", "products", "ledger", "reminders", "orders", "activity", "conversation"):
                 c.execute(f"DROP TABLE IF EXISTS {t}")
         c.executescript(SCHEMA)
         if not one("SELECT id FROM customers LIMIT 1"):
@@ -166,6 +171,12 @@ def customers() -> list[dict]:
 
 def products() -> list[dict]:
     return q("SELECT * FROM products ORDER BY name")
+
+
+def on_order(product_id: int) -> float:
+    """Quantity ordered from the supplier but not yet delivered."""
+    r = one("SELECT COALESCE(SUM(qty),0) AS q FROM orders WHERE product_id=? AND status='sent'", (product_id,))
+    return r["q"] if r else 0.0
 
 
 def start_of_today() -> float:

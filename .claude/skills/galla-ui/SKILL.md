@@ -1,6 +1,6 @@
 ---
 name: galla-ui
-description: Build or change Galla's React screens (shopkeeper voice app /app, projector dashboard /dashboard, customer pay page /pay/:id, home /). Use for any frontend, styling, animation, or layout work in web/.
+description: Build or change Galla's React screens (shopkeeper voice app /app, projector dashboard /dashboard, customer pay page /pay/:id, supplier delivery page /supply/:id, home /). Use for any frontend, styling, animation, or layout work in web/.
 ---
 
 # Galla UI conventions

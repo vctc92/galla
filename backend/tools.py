@@ -175,7 +175,7 @@ async def check_stock(product_name: str) -> dict:
         return _not_found("product", product_name, sugg)
     low = prod["stock"] <= prod["low_stock_threshold"]
     return {"ok": True, "product": prod["name"], "stock": prod["stock"], "unit": prod["unit"], "price": prod["price"],
-            "low": low, "out_of_stock": prod["stock"] <= 0,
+            "low": low, "out_of_stock": prod["stock"] <= 0, "on_order": db.on_order(prod["id"]),
             "suggested_reorder_qty": _suggested_reorder(prod) if low else None}
 
 
@@ -203,26 +203,67 @@ async def update_stock(product_name: str, qty_change: float) -> dict:
             "note": f"Only {prod['stock']:g} were in stock, so stock is now 0." if clamped else None}
 
 
-async def place_reorder(product_name: str, qty: float | None = None) -> dict:
-    """Order from the supplier over Telegram. No qty -> a sensible suggested amount (3x the low-stock level)."""
+def _supply_link(order_id: str) -> str:
+    return f"{config.PUBLIC_URL}/supply/{order_id}"
+
+
+async def place_reorder(product_name: str, qty: float | None = None, confirm_extra: bool = False) -> dict:
+    """Order from the supplier over Telegram with a 'Confirm delivery' link (like the customer pay link).
+    No qty -> a suggested amount (3x the low-stock level minus current stock)."""
     prod, sugg = catalog.resolve_product(product_name)
     if not prod:
         return _not_found("product", product_name, sugg)
+    pending = db.on_order(prod["id"])
+    if pending and not confirm_extra:
+        return {"ok": False, "error": "an order is already pending", "product": prod["name"], "already_on_order": pending,
+                "unit": prod["unit"], "hint": "Tell the shopkeeper this much is already ordered and not yet delivered; "
+                "ask if they want to order more. If yes, call again with confirm_extra=true."}
     suggested = qty is None
     qty = _suggested_reorder(prod) if suggested else _number(qty)
     problem = _qty_problem(qty, qty, prod["unit"])
     if problem:
         return {"ok": False, "error": problem, "hint": "Ask how much to order."}
-    text = (f"📦 Order request from {config.SHOP_NAME}\n{qty:g} {prod['unit']} × {prod['name']}\n"
-            f"Current stock: {prod['stock']:g} {prod['unit']}. Please confirm delivery time.")
-    res = await notify.send(config.TG_CHAT_SUPPLIER, text)
+    oid = "o" + secrets.token_urlsafe(6).replace("-", "x").replace("_", "y")
+    db.ex("INSERT INTO orders(id, product_id, qty, status, created_at) VALUES (?,?,?,?,?)",
+          (oid, prod["id"], qty, "sent", time.time()))
+    text = notify.render("supplier_order", "en", qty=f"{qty:g}", unit=prod["unit"], product=prod["name"],
+                         stock=f"{prod['stock']:g}", link=_supply_link(oid))
+    res = await notify.send(config.TG_CHAT_SUPPLIER, text, button_text=notify.render("supplier_button", "en"),
+                            button_url=_supply_link(oid))
     to = "supplier" if config.TG_CHAT_SUPPLIER_SET else "shopkeeper's own Telegram (no supplier chat configured)"
-    db.log_activity(f"Reorder sent: {qty:g} {prod['unit']} {prod['name']} → {to.split(' (')[0]}"
+    db.log_activity(f"Order sent: {qty:g} {prod['unit']} {prod['name']} → {to.split(' (')[0]}"
                     + ("" if res.get("ok") else " (dry-run)" if res.get("dry_run") else " (failed)"), "stock",
-                    {"product": prod["name"], "qty": qty, "delivered": res.get("ok")})
+                    {"product": prod["name"], "qty": qty, "order_id": oid, "delivered": res.get("ok")})
     return {"ok": bool(res.get("ok") or res.get("dry_run")), "product": prod["name"], "qty": qty, "unit": prod["unit"],
-            "qty_was_suggested": suggested, "sent_to": to,
-            "note": "Order request only; stock increases when the delivery arrives (update_stock with a positive number)."}
+            "qty_was_suggested": suggested, "sent_to": to, "order_id": oid,
+            "note": "Order request only. Stock updates automatically when the supplier taps 'Confirm delivery'."}
+
+
+def confirm_delivery(order_id: str, delivered_qty: float | None = None) -> dict:
+    """Supplier confirmed delivery (from the /supply page): add stock. Not an LLM tool — called by the API."""
+    order = db.one("SELECT * FROM orders WHERE id=?", (order_id,))
+    if not order:
+        return {"ok": False, "error": "order not found"}
+    prod = db.one("SELECT * FROM products WHERE id=?", (order["product_id"],))
+    if order["status"] == "delivered":
+        return {"ok": True, "already_delivered": True, "delivered_qty": order["delivered_qty"], "stock": prod["stock"]}
+    if order["status"] != "sent":
+        return {"ok": False, "error": f"order is {order['status']}"}
+    qty = order["qty"] if delivered_qty is None else _number(delivered_qty)
+    problem = _qty_problem(qty, delivered_qty, prod["unit"])
+    if problem:
+        return {"ok": False, "error": problem}
+    with db.tx():
+        db.ex("UPDATE orders SET status='delivered', delivered_qty=?, delivered_at=? WHERE id=?", (qty, time.time(), order_id))
+        db.ex("UPDATE products SET stock = stock + ? WHERE id=?", (qty, prod["id"]))
+        new_stock = db.one("SELECT stock FROM products WHERE id=?", (prod["id"],))["stock"]
+        short = qty < order["qty"]
+        db.log_activity(f"📦 Delivered: {qty:g} {prod['unit']} {prod['name']}"
+                        + (f" (ordered {order['qty']:g})" if short else "") + f". Stock now {new_stock:g}",
+                        "stock", {"product": prod["name"], "qty": qty, "unit": prod["unit"], "stock": new_stock,
+                                  "ordered": order["qty"], "delivery": True})
+    return {"ok": True, "product": prod["name"], "unit": prod["unit"], "delivered_qty": qty, "ordered_qty": order["qty"],
+            "stock": new_stock, "short_delivery": short}
 
 
 def _pay_link(rid: str) -> str:

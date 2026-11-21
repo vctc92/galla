@@ -31,6 +31,14 @@ TEMPLATES = {
     },
     "items_label": {"hi": "सामान: {items}", "ta": "பொருட்கள்: {items}", "en": "Items: {items}"},
     "button": {"hi": "💸 {amount} भुगतान करें", "ta": "💸 {amount} செலுத்துங்கள்", "en": "💸 Pay {amount}"},
+    # Supplier messages: English + Hindi line (supplier language isn't tracked yet).
+    "supplier_order": {
+        "en": "📦 New order from {shop}\n{qty} {unit} × {product}\nCurrent stock: {stock} {unit}\n\nTap below when you deliver, so the shop's stock updates automatically.\nडिलीवरी के बाद नीचे बटन दबाएँ।\n{link}",
+    },
+    "supplier_button": {"en": "✅ Confirm delivery"},
+    "delivered_alert": {
+        "en": "📦 Delivery received: {qty} {unit} {product}. Stock now {stock} {unit}. — Galla",
+    },
     "thanks": {
         "hi": "✅ धन्यवाद {name} जी! {amount} का भुगतान मिल गया। — {shop}",
         "ta": "✅ நன்றி {name}! {amount} பணம் கிடைத்தது. — {shop}",

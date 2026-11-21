@@ -143,6 +143,7 @@ async def state():
     prods = db.products()
     for p in prods:
         p["low"] = p["stock"] <= p["low_stock_threshold"]
+        p["on_order"] = db.on_order(p["id"])
     return {
         "shop": {"name": config.SHOP_NAME, "upi": config.SHOP_UPI_ID},
         "integrations": config.status(),
@@ -197,6 +198,33 @@ async def pay_confirm(rid: str):
                      "notified": bool(sent.get("ok"))})
     await notify.send(notify.customer_chat(cust), notify.render("thanks", cust["language"], name=cust["name"], amount=_inr(amount)))
     return {"ok": True, "amount": amount, "new_balance": new_bal}
+
+
+# ---------------- supplier delivery page (sandbox, mirrors the pay flow) ----------------
+@app.get("/api/supply/{oid}")
+async def supply_info(oid: str):
+    order = db.one("SELECT * FROM orders WHERE id=?", (oid,))
+    if not order:
+        raise HTTPException(404, "Order not found")
+    prod = db.one("SELECT * FROM products WHERE id=?", (order["product_id"],))
+    return {"id": oid, "status": order["status"], "qty": order["qty"], "delivered_qty": order["delivered_qty"],
+            "product": prod["name"], "unit": prod["unit"], "stock": prod["stock"], "shop": config.SHOP_NAME,
+            "whole_units": prod["unit"] in tools.WHOLE_UNITS, "created_at": order["created_at"]}
+
+
+class DeliveryReq(BaseModel):
+    delivered_qty: float | None = None
+
+
+@app.post("/api/supply/{oid}/confirm")
+async def supply_confirm(oid: str, req: DeliveryReq):
+    r = tools.confirm_delivery(oid, req.delivered_qty)
+    if not r["ok"]:
+        raise HTTPException(404 if r["error"] == "order not found" else 400, r["error"])
+    if not r.get("already_delivered"):
+        await notify.send(config.TG_CHAT_SHOPKEEPER, notify.render(
+            "delivered_alert", "en", qty=f"{r['delivered_qty']:g}", unit=r["unit"], product=r["product"], stock=f"{r['stock']:g}"))
+    return r
 
 
 @app.get("/api/health")

@@ -25,7 +25,7 @@ Voice bahi-khata (credit ledger) for Indian kirana shops. Hackathon MVP for **PS
 | Telegram send + hi/ta/en message templates | `backend/notify.py` |
 | Murf HTTP TTS (browser-voice fallback only) | `backend/tts.py` |
 | Routes, `/api/state`, pay endpoints, SPA fallback | `backend/main.py` |
-| Screens | `web/src/pages/{ShopApp,Dashboard,Pay,Home}.jsx` |
+| Screens | `web/src/pages/{ShopApp,Dashboard,Pay,Supply,Home}.jsx` (Supply = supplier delivery confirmation) |
 | Voice engines | `web/src/lib/agoraVoice.js` (primary), `web/src/lib/browserVoice.js` (fallback) |
 | Theme tokens | `web/src/index.css` `@theme` (canvas, surface, line, ink, muted, subtle, brand-*, ok, warn, bad) |
 

@@ -26,10 +26,12 @@ export default function Dashboard() {
   // Payment confirmation overlay — once per activity id (state refreshes every second while `fresh` keeps its ids).
   useEffect(() => {
     if (!state) return
-    const hit = state.activity.find((a) => fresh.has(a.id) && a.kind === 'payment' && !celebrated.current.has(a.id))
+    const hit = state.activity.find((a) => fresh.has(a.id) && (a.kind === 'payment' || a.meta?.delivery) && !celebrated.current.has(a.id))
     if (hit) {
       celebrated.current.add(hit.id)
-      setCelebrate({ id: hit.id, customer: hit.meta.customer, amount: hit.meta.amount, method: hit.meta.method, notified: hit.meta.notified })
+      setCelebrate(hit.kind === 'payment'
+        ? { id: hit.id, variant: 'payment', customer: hit.meta.customer, amount: hit.meta.amount, method: hit.meta.method, notified: hit.meta.notified }
+        : { id: hit.id, variant: 'delivery', ...hit.meta })
     }
   }, [fresh, state])
 
@@ -156,7 +158,7 @@ export default function Dashboard() {
         </footer>
       </div>
 
-      <AnimatePresence>{celebrate && <PaymentToast key={celebrate.id} {...celebrate} onClose={() => setCelebrate(null)} />}</AnimatePresence>
+      <AnimatePresence>{celebrate && <EventToast key={celebrate.id} {...celebrate} onClose={() => setCelebrate(null)} />}</AnimatePresence>
     </div>
   )
 }
@@ -235,6 +237,7 @@ function StockBar({ p }) {
         <span className={p.low ? 'font-semibold text-bad' : 'text-ink'}>{p.name}{p.low && <span className="ml-1.5 text-[11px] font-semibold uppercase">{p.stock <= 0 ? 'Out' : 'Low'}</span>}</span>
         <span className="text-subtle">{p.stock} {p.unit}</span>
       </div>
+      {p.on_order > 0 && <div className="text-[11px] font-medium text-brand-600">On order: {p.on_order} {p.unit}</div>}
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-canvas">
         <motion.div className={`h-full rounded-full ${p.low ? 'bg-bad' : 'bg-brand-200'}`}
           initial={false} animate={{ width: `${pct}%` }} transition={{ type: 'spring', stiffness: 90, damping: 20 }} />
@@ -243,26 +246,38 @@ function StockBar({ p }) {
   )
 }
 
-function PaymentToast({ customer, amount, method, notified, onClose }) {
+function EventToast({ variant, onClose, ...m }) {
+  const delivery = variant === 'delivery'
   return (
     <motion.div className="fixed inset-0 z-50 grid cursor-pointer place-items-center bg-canvas/60 backdrop-blur-[2px]"
       onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} role="alert">
-      <motion.div className="card relative w-[min(460px,calc(100vw-2rem))] overflow-hidden p-6 text-center sm:p-8 shadow-[0_30px_80px_-30px_rgba(14,23,38,.35)]"
+      <motion.div className="card relative w-[min(460px,calc(100vw-2rem))] overflow-hidden p-6 text-center shadow-[0_30px_80px_-30px_rgba(14,23,38,.35)] sm:p-8"
         initial={{ y: 24, scale: 0.96 }} animate={{ y: 0, scale: 1 }} exit={{ y: 12, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 26 }}>
-        <div className="absolute inset-x-0 top-0 h-1.5 bg-ok" />
+        <div className={`absolute inset-x-0 top-0 h-1.5 ${delivery ? 'bg-brand-500' : 'bg-ok'}`} />
         <div className="relative mx-auto grid h-20 w-20 place-items-center">
-          <motion.span className="absolute inset-0 rounded-full bg-ok-50" initial={{ scale: 0.6 }} animate={{ scale: [0.6, 1.25, 1] }} transition={{ duration: 0.6 }} />
+          <motion.span className={`absolute inset-0 rounded-full ${delivery ? 'bg-brand-50' : 'bg-ok-50'}`} initial={{ scale: 0.6 }} animate={{ scale: [0.6, 1.25, 1] }} transition={{ duration: 0.6 }} />
           <svg width="56" height="56" viewBox="0 0 56 56" className="relative">
-            <motion.circle cx="28" cy="28" r="26" fill="var(--color-ok)" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 16 }} />
+            <motion.circle cx="28" cy="28" r="26" fill={delivery ? 'var(--color-brand-500)' : 'var(--color-ok)'} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 16 }} />
             <motion.path d="M17 29 L25 37 L40 20" fill="none" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"
               initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ delay: 0.2, duration: 0.4 }} />
           </svg>
         </div>
-        <div className="mt-4 text-[14px] font-semibold uppercase tracking-wider text-ok">Payment received</div>
-        <div className="mt-1 text-[44px] font-bold leading-none tracking-tight sm:text-[56px]">{inr(amount)}</div>
-        <div className="mt-2 text-[18px] text-muted">from <b className="text-ink">{customer}</b> via {method === 'cash' ? 'cash' : 'UPI'}</div>
-        {notified && <div className="mt-4 text-[13px] text-subtle">Shopkeeper notified on Telegram</div>}
+        {delivery ? (
+          <>
+            <div className="mt-4 text-[14px] font-semibold uppercase tracking-wider text-brand-600">Delivery received</div>
+            <div className="mt-1 text-[44px] font-bold leading-none tracking-tight sm:text-[52px]">+{m.qty} <span className="text-[24px] font-semibold text-muted">{m.unit}</span></div>
+            <div className="mt-2 text-[18px] text-muted"><b className="text-ink">{m.product}</b> · stock now {m.stock} {m.unit}</div>
+            {m.ordered > m.qty && <div className="mt-3 text-[13px] text-warn">Short delivery: ordered {m.ordered}</div>}
+          </>
+        ) : (
+          <>
+            <div className="mt-4 text-[14px] font-semibold uppercase tracking-wider text-ok">Payment received</div>
+            <div className="mt-1 text-[44px] font-bold leading-none tracking-tight sm:text-[56px]">{inr(m.amount)}</div>
+            <div className="mt-2 text-[18px] text-muted">from <b className="text-ink">{m.customer}</b> via {m.method === 'cash' ? 'cash' : 'UPI'}</div>
+            {m.notified && <div className="mt-4 text-[13px] text-subtle">Shopkeeper notified on Telegram</div>}
+          </>
+        )}
       </motion.div>
     </motion.div>
   )

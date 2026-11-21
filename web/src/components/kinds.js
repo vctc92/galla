@@ -18,7 +18,7 @@ export const TOOL_LABELS = {
   check_balance: 'Balance checked',
   check_stock: 'Stock checked',
   update_stock: 'Stock updated',
-  place_reorder: 'Reorder sent',
+  place_reorder: 'Supplier order sent',
   send_payment_reminder: 'Reminder sent',
   daily_summary: 'Summary prepared',
 }

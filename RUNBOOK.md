@@ -97,6 +97,10 @@ curl -s -X POST localhost:8000/api/chat -H 'content-type: application/json' \
 - Tap the pay link on phone 2 → **Pay** → ✅ dashboard celebration, Murugan turns green, the shopkeeper phone gets "Payment received".
 - Send another reminder and don't pay → ✅ after 60 s, "Auto follow-up sent" appears in the activity feed.
 
+**e2) Supplier order → delivery → restock**
+Say or type *"Surf order kar do"* → ✅ Telegram (supplier chat, or yours if `TG_CHAT_SUPPLIER` is empty) gets the order with a **✅ Confirm delivery** button; dashboard shows *On order* under the item.
+Tap it → adjust quantity if short → **Confirm delivery** → ✅ stock increases, dashboard shows *Delivery received*, shopkeeper gets a Telegram alert.
+
 **f) Agora voice, full loop**
 Open `$PUBLIC_URL/app` on phone 1, set Engine to **Agora ConvoAI**, and tap the mic.
 ✅ Greeting plays → when you speak, the backend log shows `POST /llm/hi/chat/completions` and `tool add_credit(...)` → the dashboard updates.

@@ -57,6 +57,16 @@ results.append(ok(any("Auto follow-up sent to Ramesh" in t for t in acts), "sche
 summ = c.post("/api/chat", json={"message": "Aaj ka hisaab batao", "lang": "hi"}).json()["actions"][0]
 results.append(ok(summ["tool"] == "daily_summary" and summ["result"]["recovered"] == 1180, "daily_summary numbers"))
 
+o = c.post("/api/chat", json={"message": "Muttai order pannu", "lang": "ta"}).json()["actions"][0]
+results.append(ok(o["tool"] == "place_reorder" and o["result"]["ok"], "supplier order via agent"))
+oid = o["result"]["order_id"]
+info = c.get(f"/api/supply/{oid}").json()
+before = next(p for p in c.get("/api/state").json()["products"] if p["name"] == "Eggs")
+results.append(ok(info["status"] == "sent" and before["on_order"] == info["qty"], "supply page data + on-order shown"))
+d = c.post(f"/api/supply/{oid}/confirm", json={}).json()
+after = next(p for p in c.get("/api/state").json()["products"] if p["name"] == "Eggs")
+results.append(ok(d["ok"] and after["stock"] == before["stock"] + info["qty"] and after["on_order"] == 0, "supplier confirms -> stock restocked"))
+
 html = c.get("/app")
 results.append(ok(html.status_code == 200 and "<div id=\"root\">" in html.text, "SPA served at /app (needs web/dist build)"))
 

@@ -22,7 +22,7 @@ DATA RULES:
 - "kitna baaki", "evvalavu baaki" -> check_balance. "reminder bhejo / anuppu" -> send_payment_reminder.
 - "aaj ka hisaab", "innaiku kanakku" -> daily_summary.
 - Stock arrived ("10 kilo chawal aaya", "pathu kilo arisi vandhuchu") -> update_stock with a positive number.
-- Order from supplier ("order kar do", "supplier ko bolo", "order pannu") -> place_reorder. If no quantity is said, omit qty and say the suggested amount it used.
+- Order from supplier ("order kar do", "supplier ko bolo", "order pannu") -> place_reorder. If no quantity is said, omit qty and say the suggested amount it used. Stock updates by itself when the supplier confirms delivery from the link; if an order is already pending, say so and ask before ordering more (confirm_extra=true).
 - Pass customer and product names to tools in English/Roman letters (e.g. Murugan, rice); tools understand local names like arisi, chawal, paal.
 - If several items are said in one sentence, put them all in ONE add_credit call.
 - After a credit entry, say the amount added and the new total balance. If low_stock is returned (or out_of_stock), mention it and ask if you should order from the supplier.
@@ -77,7 +77,9 @@ TOOL_SCHEMAS = [
     _fn("update_stock", "Adjust stock: positive when new stock arrives, negative for corrections or sales not on credit.",
         {**_product, "qty_change": {"type": "number"}}, ["product_name", "qty_change"]),
     _fn("place_reorder", "Send an order request to the supplier on Telegram. Use when stock is low/out or the shopkeeper asks to order.",
-        {**_product, "qty": {"type": "number", "description": "Amount to order; omit to use a suggested amount."}}, ["product_name"]),
+        {**_product, "qty": {"type": "number", "description": "Amount to order; omit to use a suggested amount."},
+         "confirm_extra": {"type": "boolean", "description": "Only if the shopkeeper wants another order while one is still pending."}},
+        ["product_name"]),
     _fn("send_payment_reminder", "Send the customer a payment reminder on Telegram in their language with a UPI pay link; schedules an automatic follow-up.",
         _customer, ["customer_name"]),
     _fn("daily_summary", "Today's numbers: credit given, money recovered, total outstanding, low-stock items, top dues.", {}, []),

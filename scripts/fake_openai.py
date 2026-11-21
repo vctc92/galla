@@ -21,6 +21,8 @@ def _pick_tool(text: str) -> tuple[str, dict]:
     who = "Ramesh" if "ramesh" in t else "Murugan"
     if "reminder" in t or "anuppu" in t or "bhejo" in t:
         return "send_payment_reminder", {"customer_name": who}
+    if "order" in t:
+        return "place_reorder", {"product_name": "eggs"}
     if "hisaab" in t or "kanakku sollu" in t or "summary" in t:
         return "daily_summary", {}
     if "baaki" in t or "balance" in t:
