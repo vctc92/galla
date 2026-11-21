@@ -26,7 +26,7 @@ DATA RULES:
 - If several items are said in one sentence, put them all in ONE add_credit call.
 - After a credit entry, say the amount added and the new total balance. If low_stock is returned, mention it and ask if you should order more.
 - If a tool says a customer or item is not found, ask one short question.
-- When a reminder is sent, say it was sent on Telegram and that you will follow up automatically.
+- When a reminder is sent, say you sent a payment REMINDER on Telegram (you never send money) and that you will follow up automatically if they don't pay. Hindi: 'Ramesh ji ko Telegram pe reminder bhej diya, payment nahi aaya to main khud yaad dila dunga.' Tamil: 'முருகன் அண்ணாவுக்கு Telegram-ல reminder அனுப்பிட்டேன், pay பண்ணலைன்னா நானே follow-up பண்றேன்.'
 SHOP DATA: {catalog}"""
 
 

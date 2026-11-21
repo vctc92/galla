@@ -177,7 +177,8 @@ async def send_payment_reminder(customer_name: str) -> dict:
                     {"customer": cust["name"], "amount": bal, "reminder_id": rid, "delivered": res.get("ok")})
     return {"ok": True, "customer": cust["name"], "amount": bal, "language": cust["language"],
             "delivered": bool(res.get("ok")), "dry_run": res.get("dry_run", False), "pay_link": _pay_link(rid),
-            "follow_up_in_seconds": config.FOLLOWUP_DELAY_SECONDS}
+            "follow_up_in_seconds": config.FOLLOWUP_DELAY_SECONDS,
+            "note": "A payment REMINDER message asking the customer to pay was sent. No money was sent or received."}
 
 
 def summary_numbers() -> dict:
