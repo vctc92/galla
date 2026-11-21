@@ -125,3 +125,22 @@ Dashboard on the projector laptop: `$PUBLIC_URL/dashboard`. On each phone, open 
 | Agora dies mid-demo | `/app` → Engine → **Browser voice** (Chrome) |
 
 The API has no auth. Share the ngrok URL only with the team during the demo.
+
+## Deploy (always-on, no laptop needed)
+
+The repo ships a `Dockerfile` (builds the React UI, then runs FastAPI on `$PORT`). Any Docker host works; Railway is the simplest.
+
+**Test the image locally (optional):**
+```bash
+docker build -t galla . && docker run --env-file .env -e PORT=8000 -p 8000:8000 galla
+```
+
+**Railway:**
+1. railway.com → **New Project → Deploy from GitHub repo** → pick `galla`. It detects the Dockerfile automatically.
+2. **Variables:** paste everything from your `.env` (use the Raw Editor). Do **not** include `DB_PATH` unless you add a volume (step 4).
+3. **Settings → Networking → Generate Domain**, then set `PUBLIC_URL=https://<your-app>.up.railway.app` in Variables (it redeploys).
+4. *(Optional, keeps the ledger across redeploys)* **Add Volume** mounted at `/data`, then set `DB_PATH=/data/galla.db`.
+5. Pick a region close to India (e.g. Singapore) in service settings for lower voice latency.
+6. Verify: `curl -s https://<your-app>.up.railway.app/api/health` → every integration `true`, then run section 5 checks with `$PUBLIC_URL` set to the Railway URL.
+
+Notes: keep exactly **one** replica (the scheduler and SQLite are single-process). The free/sleeping tiers of other hosts (e.g. Render Free) break the voice demo because the first request after idle takes ~1 minute.

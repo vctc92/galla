@@ -1,0 +1,15 @@
+# secrets and local state never go into the image
+.env
+*.db
+*.db-shm
+*.db-wal
+# dev artefacts
+.git
+.venv
+.claude
+__pycache__
+*.pyc
+web/node_modules
+web/dist
+scripts
+.DS_Store
